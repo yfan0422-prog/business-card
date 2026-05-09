@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  business-card-bot:
+    build: .
+    container_name: business-card-bot
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - WECHAT_CORP_ID=${WECHAT_CORP_ID}
+      - WECHAT_SECRET=${WECHAT_SECRET}
+      - WECHAT_AGENT_ID=${WECHAT_AGENT_ID}
+      - DATA_DIR=/data
+    volumes:
+      - ./data:/data
+      - ./fonts:/app/fonts:ro
