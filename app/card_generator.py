@@ -1,8 +1,11 @@
+import logging
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 from typing import List, Optional, Tuple
 from app.models import Contact, Company
 from app.config import Config
+
+logger = logging.getLogger(__name__)
 
 
 class CardGenerator:
@@ -23,6 +26,8 @@ class CardGenerator:
         font_paths = [
             Config.FONTS_DIR / "SimSun.ttf",
             Config.FONTS_DIR / "simsun.ttf",
+            Config.FONTS_DIR / "STHeiti.ttc",
+            Path("/System/Library/Fonts/STHeiti Medium.ttc"),
             Path("/System/Library/Fonts/PingFang.ttc"),
             Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
             Path("/Windows/Fonts/simsun.ttc"),
@@ -38,7 +43,7 @@ class CardGenerator:
         try:
             if self.font_path and self.font_path.exists():
                 return ImageFont.truetype(str(self.font_path), size)
-        except:
+        except Exception:
             pass
         return ImageFont.load_default()
 
@@ -140,7 +145,7 @@ class CardGenerator:
             rounded_avatar.paste(avatar, (0, 0), mask=mask)
             img.paste(rounded_avatar, (self.PADDING, y))
         except Exception as e:
-            print(f"Error drawing avatar: {e}")
+            logger.error(f"Error drawing avatar: {e}")
 
     def _draw_card_photo(self, draw: ImageDraw, img: Image, card_path: Path, y: int):
         try:
@@ -156,7 +161,7 @@ class CardGenerator:
                 width=1
             )
         except Exception as e:
-            print(f"Error drawing card photo: {e}")
+            logger.error(f"Error drawing card photo: {e}")
 
     def create_company_overview(
         self,

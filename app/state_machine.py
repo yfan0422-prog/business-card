@@ -26,6 +26,10 @@ class UserSession:
     temp_card_photo_path: Optional[str] = None
     editing_contact_id: Optional[int] = None
 
+    def __post_init__(self):
+        if self.contact_data is None:
+            object.__setattr__(self, 'contact_data', {})
+
     def reset(self):
         self.state = InputState.IDLE
         self.contact_data = {}
@@ -157,16 +161,22 @@ class StateMachine:
             "2": "company", "公司": "company",
             "3": "department", "部门": "department",
             "4": "position", "职位": "position",
-            "5": "mobile": "mobile", "手机": "mobile",
-            "6": "phone": "phone", "电话": "phone",
-            "7": "email": "email", "邮箱": "email",
-            "8": "company_address": "company_address", "地址": "company_address",
-            "9": "notes": "notes", "备注": "notes",
+            "5": "mobile", "手机": "mobile",
+            "6": "phone", "电话": "phone",
+            "7": "email", "邮箱": "email",
+            "8": "company_address", "地址": "company_address",
+            "9": "notes", "备注": "notes",
         }
 
         if text in field_map:
             session.editing_field = field_map[text]
-            return True, f"请输入新的{text}：", None
+            field_names = {
+                "name": "姓名", "company": "公司", "department": "部门",
+                "position": "职位", "mobile": "手机", "phone": "电话",
+                "email": "邮箱", "company_address": "地址", "notes": "备注"
+            }
+            display_name = field_names.get(field_map[text], text)
+            return True, f"请输入新的{display_name}：", None
 
         if hasattr(session, "editing_field"):
             session.contact_data[session.editing_field] = text

@@ -34,3 +34,17 @@ class Company(Base):
     hot_topics = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class AIModel(Base):
+    __tablename__ = "ai_models"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    name = Column(String, nullable=False)
+    provider = Column(String, nullable=False)
+    api_base = Column(String, nullable=False)
+    api_key = Column(String, nullable=False)
+    model_name = Column(String, nullable=False)
+    is_active = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

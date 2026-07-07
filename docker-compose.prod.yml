@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: business-card-app
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - DATA_DIR=/data
+    volumes:
+      - ./data:/data
+      - ./fonts:/app/fonts:ro
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: business-card-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

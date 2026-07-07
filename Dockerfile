@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app /app/app/
 COPY fonts /app/fonts/
+COPY app/static /app/app/static/
 
 RUN mkdir -p /data/{db,photos,avatars}
 
