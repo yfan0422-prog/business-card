@@ -1960,7 +1960,8 @@ def render_ocr_page(has_active_model: bool) -> str:
         html += '<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px;">📌 如果名片有英文/背面，请继续拍摄第二面，信息将自动合并</p>';
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
         html += '<button class="btn btn-primary" onclick="startSecondRound()">📷 拍摄背面/英文面</button>';
-        html += '<button class="btn btn-ghost" onclick="skipAndSave()">跳过，直接保存</button>';
+        html += '<button class="btn btn-ghost" onclick="renderMergedForm()">✏️ 编辑识别信息</button>';
+        html += '<button class="btn btn-ghost" onclick="skipAndSave()">💾 跳过，直接保存</button>';
         html += '<button class="btn btn-ghost" onclick="resetUpload()">重新录入</button>';
         html += '</div>';
         document.getElementById('ocrResult').innerHTML = html;
@@ -2064,7 +2065,13 @@ def render_ocr_page(has_active_model: bool) -> str:
         let notes = f.notes || '';
         html += '<div class="form-group"><label>备注</label><textarea name="notes" rows="2">' + escapeHtml(notes) + '</textarea></div>';
 
-        html += '<div class="form-actions"><button type="submit" class="btn btn-primary">💾 确认保存</button><button type="button" class="btn btn-ghost" onclick="resetUpload()">重新录入</button></div>';
+        html += '<div class="form-actions" style="flex-wrap:wrap;">';
+        html += '<button type="submit" class="btn btn-primary">💾 确认保存</button>';
+        if (!secondResult) {{
+            html += '<button type="button" class="btn btn-ghost" onclick="startSecondRound()">📷 拍摄背面/英文面</button>';
+        }}
+        html += '<button type="button" class="btn btn-ghost" onclick="resetUpload()">重新录入</button>';
+        html += '</div>';
         html += '</form>';
 
         document.getElementById('ocrResult').innerHTML = html;
