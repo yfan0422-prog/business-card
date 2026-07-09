@@ -1961,7 +1961,7 @@ def render_ocr_page(has_active_model: bool) -> str:
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
         html += '<button class="btn btn-primary" onclick="startSecondRound()">📷 拍摄背面/英文面</button>';
         html += '<button class="btn btn-ghost" onclick="renderMergedForm()">✏️ 编辑识别信息</button>';
-        html += '<button class="btn btn-ghost" onclick="skipAndSave()">💾 跳过，直接保存</button>';
+        html += '<button class="btn" style="background:#16a34a;color:#fff;" onclick="skipAndSave()">💾 跳过，直接保存</button>';
         html += '<button class="btn btn-ghost" onclick="resetUpload()">重新录入</button>';
         html += '</div>';
         document.getElementById('ocrResult').innerHTML = html;
