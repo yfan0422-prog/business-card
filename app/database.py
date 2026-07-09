@@ -26,3 +26,20 @@ def get_db():
 def init_db():
     from app import models
     Base.metadata.create_all(bind=engine)
+    # 轻量迁移：为已有数据库添加新列
+    _migrate_columns()
+
+
+def _migrate_columns():
+    """为已有表添加新列（SQLite 兼容）"""
+    import sqlite3
+    try:
+        conn = sqlite3.connect(str(Config.DB_DIR / "business_cards.db"))
+        cursor = conn.execute("PRAGMA table_info(companies)")
+        existing = {row[1] for row in cursor.fetchall()}
+        if "org_structure" not in existing:
+            conn.execute("ALTER TABLE companies ADD COLUMN org_structure TEXT")
+            conn.commit()
+        conn.close()
+    except Exception:
+        pass

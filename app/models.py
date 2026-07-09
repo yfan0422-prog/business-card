@@ -32,6 +32,7 @@ class Company(Base):
     address = Column(String, nullable=True)
     latest_news = Column(Text, nullable=True)
     hot_topics = Column(Text, nullable=True)
+    org_structure = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -48,3 +49,28 @@ class AIModel(Base):
     is_active = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class KnowledgeEntry(Base):
+    __tablename__ = "knowledge_entries"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    title = Column(String(200), nullable=False)
+    content = Column(Text, nullable=False)
+    entry_type = Column(String(20), nullable=False, default="text")  # voice, file, photo, text
+    file_path = Column(String, nullable=True)
+    audio_transcript = Column(Text, nullable=True)
+    image_annotation = Column(Text, nullable=True)
+    source_description = Column(String(200), nullable=True)
+    tags = Column(String(200), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class KnowledgeContactLink(Base):
+    __tablename__ = "knowledge_contact_links"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    knowledge_id = Column(Integer, nullable=False, index=True)
+    contact_id = Column(Integer, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

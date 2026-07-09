@@ -58,16 +58,12 @@ class CardGenerator:
 
         has_avatar = contact.avatar_path and Path(contact.avatar_path).exists()
         has_card_photo = contact.business_card_path and Path(contact.business_card_path).exists()
-        has_colleagues = colleagues and len(colleagues) > 0
-
         total_height = self.PADDING * 2
         if has_avatar:
             total_height += self.AVATAR_SIZE + 20
         total_height += content_height
         if has_card_photo:
             total_height += self.THUMBNAIL_SIZE[1] + 20
-        if has_colleagues:
-            total_height += 30 + (len(colleagues) * self.LINE_HEIGHT)
 
         img = Image.new("RGB", (self.CARD_WIDTH, total_height), "white")
         draw = ImageDraw.Draw(img)
@@ -87,21 +83,6 @@ class CardGenerator:
 
         if has_card_photo:
             self._draw_card_photo(draw, img, Path(contact.business_card_path), y)
-            y += self.THUMBNAIL_SIZE[1] + 20
-
-        if has_colleagues:
-            y += 10
-            draw.text((self.PADDING, y), "─────────────────────────────", font=self.font, fill="gray")
-            y += self.LINE_HEIGHT
-            draw.text((self.PADDING, y), f"同公司联系人（{len(colleagues)}人）：", font=self.title_font, fill="black")
-            y += self.LINE_HEIGHT
-            for col in colleagues:
-                if col.id != contact.id:
-                    col_info = f"• {col.name}"
-                    if col.position:
-                        col_info += f" - {col.position}"
-                    draw.text((self.PADDING + 10, y), col_info, font=self.font, fill="darkblue")
-                    y += self.LINE_HEIGHT
 
         if output_path is None:
             output_path = Config.PHOTOS_DIR / f"card_{contact.id}.jpg"
