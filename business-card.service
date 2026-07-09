@@ -5,8 +5,8 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/root/business-card
-ExecStart=/root/business-card/start_prod.sh
+WorkingDirectory=/opt/business-card
+ExecStart=/opt/business-card/start_prod.sh
 Restart=always
 RestartSec=5
 
