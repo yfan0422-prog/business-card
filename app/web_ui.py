@@ -2608,6 +2608,31 @@ async def web_save(
                 contact.avatar_path = avatar_path
             db.commit()
     else:
+        # 查重：相同姓名+公司视为重复名片
+        existing = db.query(Contact).filter(
+            Contact.name == form_data.name,
+            Contact.company == (form_data.company or None)
+        ).first()
+        if existing:
+            db.close()
+            # 返回提示页面，告知用户已有该名片
+            company_text = f" — {existing.company}" if existing.company else ""
+            return HTMLResponse(content=f"""
+            <div style="max-width:600px;margin:60px auto;text-align:center;padding:40px;">
+                <div style="font-size:4rem;margin-bottom:16px;">⚠️</div>
+                <h2>名片已存在</h2>
+                <p style="color:var(--text-muted);margin:16px 0;">
+                    系统中已有 <strong>{existing.name}</strong>{company_text}
+                    的名片信息
+                </p>
+                <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;">
+                    <a href="/web/card/{existing.id}" style="color:var(--primary);">查看现有名片</a>
+                    <a href="/web/" style="color:var(--primary);">返回首页</a>
+                    <a href="/web/edit/{existing.id}" class="btn btn-primary btn-sm">编辑现有名片</a>
+                </div>
+            </div>
+            """)
+
         # 需要修改一下 crud.create 或者手动创建
         contact = Contact(
             name=form_data.name,
