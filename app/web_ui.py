@@ -1960,7 +1960,7 @@ def render_ocr_page(has_active_model: bool) -> str:
         html += '<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px;">📌 如果名片有英文/背面，请继续拍摄第二面，信息将自动合并</p>';
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
         html += '<button class="btn btn-primary" onclick="startSecondRound()">📷 拍摄背面/英文面</button>';
-        html += '<button class="btn btn-ghost" onclick="renderMergedForm()">跳过，直接保存</button>';
+        html += '<button class="btn btn-ghost" onclick="skipAndSave()">跳过，直接保存</button>';
         html += '<button class="btn btn-ghost" onclick="resetUpload()">重新录入</button>';
         html += '</div>';
         document.getElementById('ocrResult').innerHTML = html;
@@ -1969,6 +1969,30 @@ def render_ocr_page(has_active_model: bool) -> str:
         document.getElementById('secondRoundHint').style.display = 'block';
         document.getElementById('stepLabel').textContent = '第2步：拍摄名片背面/英文面';
         selectedFile = null;
+    }}
+
+    function skipAndSave() {{
+        const f = firstResult || {{}};
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/web/save';
+        const fields = ['name','company','department','position','mobile','phone','email','company_address','notes'];
+        for (const key of fields) {{
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = key;
+            input.value = f[key] || '';
+            form.appendChild(input);
+        }}
+        if (firstCardPhoto) {{
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'card_photo_filename';
+            input.value = firstCardPhoto;
+            form.appendChild(input);
+        }}
+        document.body.appendChild(form);
+        form.submit();
     }}
 
     function startSecondRound() {{
