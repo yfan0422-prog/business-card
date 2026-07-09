@@ -1643,7 +1643,10 @@ def render_ocr_page(has_active_model: bool) -> str:
             <div id="cameraArea" style="display:none;margin-bottom:20px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
                     <span style="font-weight:600;">📷 相机预览</span>
-                    <button class="btn btn-ghost btn-sm" onclick="toggleRotation()">🔄 旋转画面</button>
+                    <div style="display:flex;gap:8px;">
+                        <button class="btn btn-ghost btn-sm" onclick="switchCamera()" id="switchCamBtn">🔄 切换摄像头</button>
+                        <button class="btn btn-ghost btn-sm" onclick="toggleRotation()">↻ 旋转画面</button>
+                    </div>
                 </div>
                 <div style="position:relative;width:100%;overflow:hidden;border-radius:12px;box-shadow:var(--shadow);background:#000;">
                     <video id="cameraVideo" autoplay playsinline style="width:100%;"></video>
@@ -1683,13 +1686,15 @@ def render_ocr_page(has_active_model: bool) -> str:
     let selectedFile = null;
     let mediaStream = null;
     let rotation = 0;
+    let currentFacingMode = 'environment';  // 'environment'=后置, 'user'=前置
 
     function showFileSelect() {
         document.getElementById('choiceButtons').style.display = 'none';
         document.getElementById('uploadArea').style.display = 'block';
     }
 
-    async function startCamera() {
+    async function startCamera(facingMode) {
+        if (!facingMode) facingMode = currentFacingMode;
         // 检查浏览器支持
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             showToast('您的浏览器不支持摄像头功能，请使用Chrome、Safari或Edge', 'error');
@@ -1703,23 +1708,36 @@ def render_ocr_page(has_active_model: bool) -> str:
             return;
         }
 
+        // 先停掉当前流
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
+        }
+
         try {
             const video = document.getElementById('cameraVideo');
-            // 先尝试后置摄像头
-            try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } }
-                });
-            } catch(e) {
-                // 如果后置不行，尝试任意摄像头
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 1920 }, height: { ideal: 1080 } }
-                });
-            }
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            });
+            currentFacingMode = facingMode;
             video.srcObject = mediaStream;
             document.getElementById('choiceButtons').style.display = 'none';
             document.getElementById('cameraArea').style.display = 'block';
         } catch(e) {
+            // 如果指定facingMode失败，尝试不指定
+            if (facingMode !== undefined) {
+                try {
+                    const video = document.getElementById('cameraVideo');
+                    mediaStream = await navigator.mediaDevices.getUserMedia({
+                        video: { width: { ideal: 1920 }, height: { ideal: 1080 } }
+                    });
+                    currentFacingMode = 'unknown';
+                    video.srcObject = mediaStream;
+                    document.getElementById('choiceButtons').style.display = 'none';
+                    document.getElementById('cameraArea').style.display = 'block';
+                    return;
+                } catch(e2) {}
+            }
             let msg = '无法访问摄像头';
             if (e.name === 'NotAllowedError') {
                 msg = '请允许访问摄像头权限';
@@ -1731,6 +1749,11 @@ def render_ocr_page(has_active_model: bool) -> str:
             showToast(msg + '，请使用「选择图片」', 'error');
             console.error(e);
         }
+    }
+
+    async function switchCamera() {
+        const newMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+        await startCamera(newMode);
     }
 
     function stopCamera() {
@@ -2468,8 +2491,8 @@ async def web_home():
         })
 
     total_companies = len(companies_data)
-    db.close()
 
+    # 必须在 db.close() 之前提取数据，否则会触发 DetachedInstanceError
     contacts_data = [
         type('obj', (object,), {
             'id': c.id, 'name': c.name, 'company': c.company,
@@ -2477,6 +2500,7 @@ async def web_home():
             'mobile': c.mobile, 'phone': c.phone, 'email': c.email,
         }) for c in contacts
     ]
+    db.close()
 
     return HTMLResponse(content=render_home(contacts_data, companies_data, total_contacts, total_companies))
 
