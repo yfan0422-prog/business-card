@@ -14,8 +14,13 @@ else
     pip install -r requirements.txt
 fi
 
-# 确保 data 目录存在
-mkdir -p data/db data/photos data/avatars
+# 确保 data 目录存在（从 .env 读取路径，默认项目内 data/）
+if [ -f ".env" ]; then
+    DATA_DIR=$(grep -oP 'DATA_DIR=\K.*' .env || echo "data")
+else
+    DATA_DIR="data"
+fi
+mkdir -p "$DATA_DIR/db" "$DATA_DIR/photos" "$DATA_DIR/avatars"
 
 # 启动服务
 python3 -m uvicorn app.main:app \
