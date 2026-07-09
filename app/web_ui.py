@@ -2746,7 +2746,9 @@ async def web_save(
     company_address: str = Form(""), notes: str = Form(""),
     card_photo: UploadFile = File(None), avatar: UploadFile = File(None),
     card_photo_filename: str = Form(None),
-    card_photo_filename_2: str = Form(None)
+    card_photo_filename_2: str = Form(None),
+    overwrite_id: int = Form(None),
+    force_create: str = Form(None)
 ):
     # 保存上传的图片
     def save_uploaded_file(file_obj, prefix=""):
@@ -2803,28 +2805,105 @@ async def web_save(
             if avatar_path:
                 contact.avatar_path = avatar_path
             db.commit()
+    elif overwrite_id:
+        # 用户选择覆盖现有名片
+        contact = db.query(Contact).filter(Contact.id == overwrite_id).first()
+        if contact:
+            contact.name = form_data.name
+            contact.name_en = name_en or None
+            contact.company = form_data.company
+            contact.company_en = company_en or None
+            contact.department = form_data.department
+            contact.department_en = department_en or None
+            contact.position = form_data.position
+            contact.position_en = position_en or None
+            contact.mobile = form_data.mobile
+            contact.phone = form_data.phone
+            contact.email = form_data.email
+            contact.company_address = form_data.company_address
+            contact.notes = form_data.notes
+            if card_photo_path:
+                contact.business_card_path = card_photo_path
+            if card_photo_path_2:
+                contact.business_card_path_2 = card_photo_path_2
+            if avatar_path:
+                contact.avatar_path = avatar_path
+            db.commit()
+            db.close()
+            return RedirectResponse("/web/", status_code=302)
     else:
-        # 查重：相同姓名+公司视为重复名片
+        # 查重：相同姓名+公司
         existing = db.query(Contact).filter(
             Contact.name == form_data.name,
             Contact.company == (form_data.company or None)
         ).first()
+
+        # 同名但不同公司 → 直接创建，不询问
+        if existing and form_data.company and (not existing.company or existing.company != form_data.company):
+            existing = None
+
+        # 强制创建（用户选择"新增独立名片"）
+        if existing and force_create:
+            existing = None
+
         if existing:
             db.close()
-            # 返回提示页面，告知用户已有该名片
+            # 构建隐藏字段，传递给确认页面
+            import html as _html
+            def h_f(name, value):
+                return f'<input type="hidden" name="{name}" value="{_html.escape(str(value or ""))}">'
             company_text = f" — {existing.company}" if existing.company else ""
+            hidden_fields = "".join([
+                h_f("name", form_data.name), h_f("name_en", name_en),
+                h_f("company", form_data.company), h_f("company_en", company_en),
+                h_f("department", form_data.department), h_f("department_en", department_en),
+                h_f("position", form_data.position), h_f("position_en", position_en),
+                h_f("mobile", form_data.mobile), h_f("phone", form_data.phone),
+                h_f("email", form_data.email), h_f("company_address", form_data.company_address),
+                h_f("notes", form_data.notes),
+                h_f("card_photo_filename", card_photo_filename or ""),
+                h_f("card_photo_filename_2", card_photo_filename_2 or ""),
+            ])
             return HTMLResponse(content=f"""
-            <div style="max-width:600px;margin:60px auto;text-align:center;padding:40px;">
-                <div style="font-size:4rem;margin-bottom:16px;">⚠️</div>
-                <h2>名片已存在</h2>
-                <p style="color:var(--text-muted);margin:16px 0;">
-                    系统中已有 <strong>{existing.name}</strong>{company_text}
-                    的名片信息
-                </p>
-                <div style="display:flex;gap:12px;justify-content:center;margin-top:24px;">
-                    <a href="/web/card/{existing.id}" style="color:var(--primary);">查看现有名片</a>
-                    <a href="/web/" style="color:var(--primary);">返回首页</a>
-                    <a href="/web/edit/{existing.id}" class="btn btn-primary btn-sm">编辑现有名片</a>
+            <div style="max-width:600px;margin:40px auto;padding:24px;">
+                <div style="text-align:center;margin-bottom:24px;">
+                    <div style="font-size:3rem;margin-bottom:12px;">⚠️</div>
+                    <h2>发现同名名片</h2>
+                    <p style="color:var(--text-muted);margin-top:8px;">
+                        系统中已有 <strong>{existing.name}</strong>{company_text} 的名片
+                    </p>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+                    <div style="background:#f8fafc;border-radius:10px;padding:16px;border:1px solid var(--border);">
+                        <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px;">📋 现有名片</div>
+                        <p style="font-weight:600;">{existing.name}</p>
+                        <p style="font-size:.85rem;color:var(--text-muted);">{existing.company or '—'}</p>
+                        <p style="font-size:.85rem;color:var(--text-muted);">{existing.department or ''} {existing.position or ''}</p>
+                        <a href="/web/card/{existing.id}" style="font-size:.8rem;color:var(--primary);">查看详情 →</a>
+                    </div>
+                    <div style="background:#eff6ff;border-radius:10px;padding:16px;border:1px solid var(--primary);">
+                        <div style="font-size:.8rem;color:var(--text-muted);margin-bottom:8px;">📝 新录入信息</div>
+                        <p style="font-weight:600;">{form_data.name}</p>
+                        <p style="font-size:.85rem;color:var(--text-muted);">{form_data.company or '—'}</p>
+                        <p style="font-size:.85rem;color:var(--text-muted);">{form_data.department or ''} {form_data.position or ''}</p>
+                    </div>
+                </div>
+
+                <p style="text-align:center;color:var(--text-muted);margin-bottom:16px;">请选择操作方式：</p>
+
+                <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                    <form method="post" action="/web/save" style="display:inline;">
+                        {hidden_fields}
+                        <input type="hidden" name="overwrite_id" value="{existing.id}">
+                        <button type="submit" class="btn btn-primary">🔄 覆盖现有名片</button>
+                    </form>
+                    <form method="post" action="/web/save" style="display:inline;">
+                        {hidden_fields}
+                        <input type="hidden" name="force_create" value="1">
+                        <button type="submit" class="btn btn-ghost">➕ 新增独立名片</button>
+                    </form>
+                    <a href="/web/" class="btn btn-ghost" style="display:inline-flex;">取消返回</a>
                 </div>
             </div>
             """)
