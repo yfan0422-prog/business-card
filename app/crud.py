@@ -35,8 +35,9 @@ class CRUDContact:
 
     def search(self, db: Session, keyword: str) -> List[Contact]:
         search_fields = [
-            Contact.name, Contact.company, Contact.department,
-            Contact.position, Contact.notes
+            Contact.name, Contact.name_en, Contact.company, Contact.company_en,
+            Contact.department, Contact.department_en,
+            Contact.position, Contact.position_en, Contact.notes
         ]
         return db.query(Contact).filter(
             _build_chinese_search(Contact, search_fields, keyword)

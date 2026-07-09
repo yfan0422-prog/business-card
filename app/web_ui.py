@@ -597,6 +597,10 @@ def render_form(contact: Optional[Contact] = None) -> str:
                     <label>姓名 <span style="color:var(--danger);">*</span></label>
                     <input type="text" name="name" value="{get('name')}" required placeholder="请输入姓名" autofocus>
                 </div>
+                <div class="form-group">
+                    <label>英文姓名</label>
+                    <input type="text" name="name_en" value="{get('name_en')}" placeholder="英文姓名（可选）">
+                </div>
 
                 <div class="form-group">
                     <label>名片照片</label>
@@ -628,8 +632,18 @@ def render_form(contact: Optional[Contact] = None) -> str:
                         <input type="text" name="company" value="{get('company')}" placeholder="公司名称">
                     </div>
                     <div class="form-group">
+                        <label>英文公司名</label>
+                        <input type="text" name="company_en" value="{get('company_en')}" placeholder="英文公司名（可选）">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
                         <label>部门</label>
                         <input type="text" name="department" value="{get('department')}" placeholder="所属部门">
+                    </div>
+                    <div class="form-group">
+                        <label>英文部门</label>
+                        <input type="text" name="department_en" value="{get('department_en')}" placeholder="英文部门（可选）">
                     </div>
                 </div>
                 <div class="form-row">
@@ -638,8 +652,18 @@ def render_form(contact: Optional[Contact] = None) -> str:
                         <input type="text" name="position" value="{get('position')}" placeholder="职位名称">
                     </div>
                     <div class="form-group">
+                        <label>英文职位</label>
+                        <input type="text" name="position_en" value="{get('position_en')}" placeholder="英文职位（可选）">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
                         <label>手机</label>
                         <input type="text" name="mobile" value="{get('mobile')}" placeholder="手机号码">
+                    </div>
+                    <div class="form-group">
+                        <label>电话</label>
+                        <input type="text" name="phone" value="{get('phone')}" placeholder="固定电话">
                     </div>
                 </div>
                 <div class="form-row">
@@ -805,17 +829,34 @@ def render_card_page(
     org_structure: list = None, contact_name_index: dict = None,
     dept_contacts_map: dict = None
 ) -> str:
+    # ── 基本信息（含双语） ──
     info_rows = []
+    # 英文名（有值才显示）
+    if getattr(contact, 'name_en', None):
+        info_rows.append(f"<div class='form-group'><label>英文姓名</label><p>{contact.name_en}</p></div>")
     for label, field in [("公司", "company"), ("部门", "department"), ("职位", "position"),
                           ("手机", "mobile"), ("电话", "phone"), ("邮箱", "email"),
-                          ("地址", "company_address"), ("备注", "notes")]:
+                          ("地址", "company_address")]:
         val = getattr(contact, field, None)
+        val_en = getattr(contact, field + "_en", None)
         if val:
-            info_rows.append(f"<div class='form-group'><label>{label}</label><p>{val}</p></div>")
+            display = val
+            if val_en and val_en.strip().lower() != val.strip().lower():
+                display = f"{val} <span style='color:var(--text-muted);font-size:.85rem;'>({val_en})</span>"
+            info_rows.append(f"<div class='form-group'><label>{label}</label><p>{display}</p></div>")
+        elif val_en:
+            info_rows.append(f"<div class='form-group'><label>{label}（英）</label><p>{val_en}</p></div>")
+    # 备注
+    if contact.notes:
+        info_rows.append(f"<div class='form-group'><label>备注</label><p>{contact.notes}</p></div>")
 
+    # ── 名片图片（支持双面） ──
     img_html = ""
     if card_exists:
-        img_html = f'<img src="/web/photo/{card_filename}" alt="{contact.name}的名片" style="max-width:100%;border-radius:8px;box-shadow:var(--shadow);">'
+        img_html = f'<img src="/web/photo/{card_filename}" alt="{contact.name}的名片" style="max-width:100%;border-radius:8px;box-shadow:var(--shadow);margin-bottom:8px;">'
+        # 如果存在第二面图片，也显示
+        if getattr(contact, 'business_card_path_2', None):
+            img_html += f'<img src="/web/photo/{contact.business_card_path_2}" alt="{contact.name}的名片背面" style="max-width:100%;border-radius:8px;box-shadow:var(--shadow);">'
     else:
         img_html = '<div class="empty-state"><div class="icon">🖼️</div><h3>名片生成失败</h3></div>'
 
@@ -1618,11 +1659,13 @@ def render_ocr_page(has_active_model: bool) -> str:
         </div>"""
         return layout("拍照录入", content)
 
-    content = """
+    step_label = "第1步：拍摄/上传名片正面（中文面）"
+    content = f"""
     <div class="form-page">
         <div class="form-card">
             <h2>📷 拍照录入名片</h2>
-            <p style="color:var(--text-muted);margin-bottom:20px;">上传名片照片或直接拍照，AI 将自动识别并提取信息</p>
+            <p style="color:var(--text-muted);margin-bottom:4px;" id="stepLabel">{step_label}</p>
+            <p style="color:var(--text-muted);font-size:.8rem;margin-bottom:20px;" id="stepHint">中英文双面名片可拍两次，自动合并为同一人信息</p>
 
             <!-- 选择方式按钮 -->
             <div id="choiceButtons" style="display:flex;gap:12px;margin-bottom:20px;">
@@ -1669,210 +1712,327 @@ def render_ocr_page(has_active_model: bool) -> str:
 
             <div id="ocrProgress" style="display:none;text-align:center;padding:20px;">
                 <div style="font-size:2rem;animation:spin 1s linear infinite;">⏳</div>
-                <p style="color:var(--text-muted);margin-top:8px;">AI 正在识别名片信息...</p>
+                <p style="color:var(--text-muted);margin-top:8px;" id="ocrProgressText">AI 正在识别名片信息...</p>
             </div>
 
+            <!-- 合并表单区域 -->
             <div id="ocrResult" style="display:none;"></div>
+
+            <!-- 第二次拍照提示 -->
+            <div id="secondRoundHint" style="display:none;text-align:center;padding:16px;background:#f0fdf4;border-radius:8px;margin-bottom:20px;">
+                <span style="font-weight:600;color:#166534;">✅ 正面已识别成功</span>
+                <p style="color:#166534;margin:4px 0;font-size:.9rem;">如果名片有英文/背面，请继续拍摄第二面，系统将自动合并为同一人信息</p>
+            </div>
         </div>
     </div>
 
     <style>
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-    #uploadArea:hover { border-color: var(--primary); background: #eff6ff; }
-    #uploadArea.dragover { border-color: var(--primary); background: #eff6ff; }
+    @keyframes spin {{ from {{ transform: rotate(0deg); }} to {{ transform: rotate(360deg); }} }}
+    #uploadArea:hover {{ border-color: var(--primary); background: #eff6ff; }}
+    #uploadArea.dragover {{ border-color: var(--primary); background: #eff6ff; }}
+    .ocr-side-badge {{ display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600;margin-bottom:8px; }}
+    .badge-front {{ background:#eff6ff;color:#1d4ed8; }}
+    .badge-back {{ background:#fef3c7;color:#92400e; }}
     </style>
 
     <script>
     let selectedFile = null;
     let mediaStream = null;
     let rotation = 0;
-    let currentFacingMode = 'environment';  // 'environment'=后置, 'user'=前置
+    let currentFacingMode = 'environment';
+    let firstResult = null;   // 第一面（正面/中文）
+    let secondResult = null;  // 第二面（背面/英文）
+    let firstCardPhoto = null;
+    let secondCardPhoto = null;
 
-    function showFileSelect() {
+    function showFileSelect() {{
         document.getElementById('choiceButtons').style.display = 'none';
         document.getElementById('uploadArea').style.display = 'block';
-    }
+    }}
 
-    async function startCamera(facingMode) {
+    async function startCamera(facingMode) {{
         if (!facingMode) facingMode = currentFacingMode;
-        // 检查浏览器支持
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {{
             showToast('您的浏览器不支持摄像头功能，请使用Chrome、Safari或Edge', 'error');
             return;
-        }
-
-        // 检查是否在安全环境（HTTPS或localhost）
+        }}
         const isSecure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-        if (!isSecure) {
+        if (!isSecure) {{
             showToast('摄像头需要HTTPS环境！请使用 start_https.sh 启动服务', 'error');
             return;
-        }
-
-        // 先停掉当前流
-        if (mediaStream) {
+        }}
+        if (mediaStream) {{
             mediaStream.getTracks().forEach(track => track.stop());
             mediaStream = null;
-        }
-
-        try {
+        }}
+        try {{
             const video = document.getElementById('cameraVideo');
-            mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }
-            });
+            mediaStream = await navigator.mediaDevices.getUserMedia({{
+                video: {{ facingMode: facingMode, width: {{ ideal: 1920 }}, height: {{ ideal: 1080 }} }}
+            }});
             currentFacingMode = facingMode;
             video.srcObject = mediaStream;
             document.getElementById('choiceButtons').style.display = 'none';
             document.getElementById('cameraArea').style.display = 'block';
-        } catch(e) {
-            // 如果指定facingMode失败，尝试不指定
-            if (facingMode !== undefined) {
-                try {
+        }} catch(e) {{
+            if (facingMode !== undefined) {{
+                try {{
                     const video = document.getElementById('cameraVideo');
-                    mediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: { ideal: 1920 }, height: { ideal: 1080 } }
-                    });
+                    mediaStream = await navigator.mediaDevices.getUserMedia({{
+                        video: {{ width: {{ ideal: 1920 }}, height: {{ ideal: 1080 }} }}
+                    }});
                     currentFacingMode = 'unknown';
                     video.srcObject = mediaStream;
                     document.getElementById('choiceButtons').style.display = 'none';
                     document.getElementById('cameraArea').style.display = 'block';
                     return;
-                } catch(e2) {}
-            }
+                }} catch(e2) {{}}
+            }}
             let msg = '无法访问摄像头';
-            if (e.name === 'NotAllowedError') {
-                msg = '请允许访问摄像头权限';
-            } else if (e.name === 'NotFoundError') {
-                msg = '未找到摄像头设备';
-            } else if (e.name === 'NotReadableError') {
-                msg = '摄像头被其他应用占用';
-            }
+            if (e.name === 'NotAllowedError') msg = '请允许访问摄像头权限';
+            else if (e.name === 'NotFoundError') msg = '未找到摄像头设备';
+            else if (e.name === 'NotReadableError') msg = '摄像头被其他应用占用';
             showToast(msg + '，请使用「选择图片」', 'error');
-            console.error(e);
-        }
-    }
+        }}
+    }}
 
-    async function switchCamera() {
+    async function switchCamera() {{
         const newMode = currentFacingMode === 'environment' ? 'user' : 'environment';
         await startCamera(newMode);
-    }
+    }}
 
-    function stopCamera() {
-        if (mediaStream) {
+    function stopCamera() {{
+        if (mediaStream) {{
             mediaStream.getTracks().forEach(track => track.stop());
             mediaStream = null;
-        }
+        }}
         rotation = 0;
         const video = document.getElementById('cameraVideo');
         video.style.transform = '';
         document.getElementById('cameraArea').style.display = 'none';
-        document.getElementById('choiceButtons').style.display = 'flex';
-    }
+        if (!firstResult) {{
+            document.getElementById('choiceButtons').style.display = 'flex';
+        }} else {{
+            // 第二面取消后回到合并表单
+            renderMergedForm();
+        }}
+    }}
 
-    function toggleRotation() {
+    function toggleRotation() {{
         rotation = (rotation + 90) % 360;
-        const video = document.getElementById('cameraVideo');
-        video.style.transform = 'rotate(' + rotation + 'deg)';
-    }
+        document.getElementById('cameraVideo').style.transform = 'rotate(' + rotation + 'deg)';
+    }}
 
-    function capturePhoto() {
+    function capturePhoto() {{
         const video = document.getElementById('cameraVideo');
         const canvas = document.getElementById('cameraCanvas');
         const ctx = canvas.getContext('2d');
-
-        if (rotation === 90 || rotation === 270) {
+        if (rotation === 90 || rotation === 270) {{
             canvas.width = video.videoHeight;
             canvas.height = video.videoWidth;
-        } else {
+        }} else {{
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-        }
-
+        }}
         ctx.save();
         ctx.translate(canvas.width / 2, canvas.height / 2);
         ctx.rotate(rotation * Math.PI / 180);
         ctx.drawImage(video, -video.videoWidth / 2, -video.videoHeight / 2);
         ctx.restore();
-
-        canvas.toBlob(function(blob) {
-            selectedFile = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+        canvas.toBlob(function(blob) {{
+            selectedFile = new File([blob], 'photo.jpg', {{ type: 'image/jpeg' }});
             document.getElementById('previewImage').src = canvas.toDataURL('image/jpeg');
             stopCamera();
+            document.getElementById('cameraArea').style.display = 'none';
             document.getElementById('previewArea').style.display = 'block';
             document.getElementById('ocrResult').style.display = 'none';
-        }, 'image/jpeg', 0.9);
-    }
+        }}, 'image/jpeg', 0.9);
+    }}
 
-    function handleDragOver(e) { e.preventDefault(); document.getElementById('uploadArea').classList.add('dragover'); }
-    function handleDragLeave(e) { document.getElementById('uploadArea').classList.remove('dragover'); }
-    function handleDrop(e) {
+    function handleDragOver(e) {{ e.preventDefault(); document.getElementById('uploadArea').classList.add('dragover'); }}
+    function handleDragLeave(e) {{ document.getElementById('uploadArea').classList.remove('dragover'); }}
+    function handleDrop(e) {{
         e.preventDefault();
         document.getElementById('uploadArea').classList.remove('dragover');
-        if (e.dataTransfer.files.length > 0) { processFile(e.dataTransfer.files[0]); }
-    }
-    function handleFileSelect(e) { if (e.target.files.length > 0) { processFile(e.target.files[0]); } }
-    function processFile(file) {
-        if (!file.type.startsWith('image/')) { showToast('请选择图片文件', 'error'); return; }
+        if (e.dataTransfer.files.length > 0) processFile(e.dataTransfer.files[0]);
+    }}
+    function handleFileSelect(e) {{ if (e.target.files.length > 0) processFile(e.target.files[0]); }}
+    function processFile(file) {{
+        if (!file.type.startsWith('image/')) {{ showToast('请选择图片文件', 'error'); return; }}
         selectedFile = file;
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = (e) => {{
             document.getElementById('previewImage').src = e.target.result;
             document.getElementById('uploadArea').style.display = 'none';
             document.getElementById('previewArea').style.display = 'block';
             document.getElementById('ocrResult').style.display = 'none';
-        };
+        }};
         reader.readAsDataURL(file);
-    }
-    function resetUpload() {
+    }}
+
+    function resetUpload() {{
         selectedFile = null;
+        firstResult = null;
+        secondResult = null;
+        firstCardPhoto = null;
+        secondCardPhoto = null;
         document.getElementById('fileInput').value = '';
         document.getElementById('uploadArea').style.display = 'none';
         document.getElementById('previewArea').style.display = 'none';
         document.getElementById('ocrResult').style.display = 'none';
         document.getElementById('ocrProgress').style.display = 'none';
+        document.getElementById('cameraArea').style.display = 'none';
+        document.getElementById('secondRoundHint').style.display = 'none';
         document.getElementById('choiceButtons').style.display = 'flex';
-    }
-    async function startOCR() {
+        document.getElementById('stepLabel').textContent = '{step_label}';
+    }}
+
+    async function startOCR() {{
         if (!selectedFile) return;
         document.getElementById('ocrBtn').disabled = true;
         document.getElementById('ocrProgress').style.display = 'block';
+        const isSecondRound = firstResult !== null;
+        document.getElementById('ocrProgressText').textContent = isSecondRound ? 'AI 正在识别背面/英文面...' : 'AI 正在识别名片信息...';
         const formData = new FormData();
         formData.append('file', selectedFile);
-        try {
-            const resp = await fetch('/web/api/ocr', { method: 'POST', body: formData });
+        try {{
+            const resp = await fetch('/web/api/ocr', {{ method: 'POST', body: formData }});
             const data = await resp.json();
             document.getElementById('ocrProgress').style.display = 'none';
-            if (data.error) {
+            if (data.error) {{
                 showToast(data.error, 'error');
                 document.getElementById('ocrBtn').disabled = false;
                 return;
-            }
-            renderOCRResult(data);
-        } catch(e) {
+            }}
+            if (!isSecondRound) {{
+                // 第一面结果
+                firstResult = data;
+                firstCardPhoto = data.card_photo || null;
+                showSecondRoundOption();
+            }} else {{
+                // 第二面结果
+                secondResult = data;
+                secondCardPhoto = data.card_photo || null;
+                renderMergedForm();
+            }}
+        }} catch(e) {{
             document.getElementById('ocrProgress').style.display = 'none';
             showToast('识别请求失败', 'error');
             document.getElementById('ocrBtn').disabled = false;
-        }
-    }
-    function renderOCRResult(data) {
+        }}
+    }}
+
+    function showSecondRoundOption() {{
+        // 显示第一面结果摘要 + 添加背面按钮
+        const data = firstResult;
         const fields = [
             ['name', '姓名'], ['company', '公司'], ['department', '部门'],
             ['position', '职位'], ['mobile', '手机'], ['phone', '电话'],
             ['email', '邮箱'], ['company_address', '地址']
         ];
-        let formHTML = '<form action="/web/save" method="post" enctype="multipart/form-data"><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
-        for (const [key, label] of fields) {
-            const val = data[key] || '';
-            formHTML += `<div class="form-group"><label>${label}</label><input type="text" name="${key}" value="${escapeHtml(val)}"></div>`;
-        }
-        formHTML += '</div><div class="form-group"><label>备注</label><textarea name="notes" rows="2">' + escapeHtml(data.notes || '') + '</textarea></div>';
-        if (data.card_photo) {
-            formHTML += `<input type="hidden" name="card_photo_filename" value="${escapeHtml(data.card_photo)}">`;
-        }
-        formHTML += '<div class="form-actions"><button type="submit" class="btn btn-primary">💾 确认保存</button><button type="button" class="btn btn-ghost" onclick="resetUpload()">重新录入</button></div></form>';
-        document.getElementById('ocrResult').innerHTML = '<h3 style="margin-bottom:16px;">✅ 识别结果 — 请确认并修正</h3>' + formHTML;
+        let html = '<h3 style="margin-bottom:8px;">✅ 正面识别成功</h3>';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.9rem;margin-bottom:16px;">';
+        for (const [key, label] of fields) {{
+            if (data[key]) {{
+                html += '<div><span style="color:var(--text-muted);">' + label + '：</span>' + escapeHtml(data[key]) + '</div>';
+            }}
+        }}
+        html += '</div>';
+        html += '<p style="color:var(--text-muted);font-size:.85rem;margin-bottom:12px;">📌 如果名片有英文/背面，请继续拍摄第二面，信息将自动合并</p>';
+        html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+        html += '<button class="btn btn-primary" onclick="startSecondRound()">📷 拍摄背面/英文面</button>';
+        html += '<button class="btn btn-ghost" onclick="renderMergedForm()">跳过，直接保存</button>';
+        html += '<button class="btn btn-ghost" onclick="resetUpload()">重新录入</button>';
+        html += '</div>';
+        document.getElementById('ocrResult').innerHTML = html;
         document.getElementById('ocrResult').style.display = 'block';
-    }
-    function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+        document.getElementById('previewArea').style.display = 'none';
+        document.getElementById('secondRoundHint').style.display = 'block';
+        document.getElementById('stepLabel').textContent = '第2步：拍摄名片背面/英文面';
+        selectedFile = null;
+    }}
+
+    function startSecondRound() {{
+        document.getElementById('ocrResult').style.display = 'none';
+        document.getElementById('secondRoundHint').style.display = 'none';
+        document.getElementById('choiceButtons').style.display = 'flex';
+        document.getElementById('stepLabel').textContent = '第2步：拍摄名片背面/英文面';
+    }}
+
+    function renderMergedForm() {{
+        // 合并两面结果：正面数据为主，背面不同内容填入 _en 字段
+        const f = firstResult || {{}};
+        const s = secondResult || {{}};
+
+        // 判断第二面是否与第一面不同（不同 → 填入英文字段）
+        function isDifferent(key) {{
+            const fv = (f[key] || '').trim().toLowerCase();
+            const sv = (s[key] || '').trim().toLowerCase();
+            return sv && sv !== fv;
+        }}
+
+        let photoHidden = '';
+        if (firstCardPhoto) photoHidden += '<input type="hidden" name="card_photo_filename" value="' + escapeHtml(firstCardPhoto) + '">';
+        if (secondCardPhoto) photoHidden += '<input type="hidden" name="card_photo_filename_2" value="' + escapeHtml(secondCardPhoto) + '">';
+
+        let html = '<form action="/web/save" method="post" enctype="multipart/form-data">';
+        html += photoHidden;
+
+        // 提示当前合并状态
+        if (secondResult) {{
+            html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;"><span class="ocr-side-badge badge-front">正面</span><span class="ocr-side-badge badge-back">背面</span><span style="font-size:.85rem;color:var(--text-muted);">两面信息已合并，请确认后保存</span></div>';
+        }}
+
+        // 双列表格：中文 | 英文
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
+        const fieldPairs = [
+            ['name', '姓名'], ['name_en', '英文姓名'],
+            ['company', '公司'], ['company_en', '英文公司'],
+            ['department', '部门'], ['department_en', '英文部门'],
+            ['position', '职位'], ['position_en', '英文职位'],
+            ['mobile', '手机', true], ['phone', '电话', true],
+            ['email', '邮箱', true], ['company_address', '地址', true],
+        ];
+
+        for (const item of fieldPairs) {{
+            const key = item[0];
+            const label = item[1];
+            const isSingle = item[2];
+            if (isSingle) {{
+                // 单列字段（手机/电话/邮箱/地址只在正面出现）
+                html += '<div class="form-group"><label>' + label + '</label><input type="text" name="' + key + '" value="' + escapeHtml(f[key] || '') + '"></div>';
+            }} else if (key.endsWith('_en')) {{
+                // 英文字段默认填第二面数据
+                const baseKey = key.replace('_en', '');
+                const enVal = (s[baseKey] || '');
+                const cnVal = (f[baseKey] || '');
+                // 如果第二面和第一面内容相同（如都是数字），不重复填入
+                const isSame = enVal.trim().toLowerCase() === cnVal.trim().toLowerCase();
+                const val = (enVal && !isSame) ? enVal : '';
+                html += '<div class="form-group" style="background:#fffbeb;border-radius:6px;padding:4px 8px;"><label style="color:#92400e;">' + label + '</label><input type="text" name="' + key + '" value="' + escapeHtml(val) + '" placeholder="自动识别英文信息"></div>';
+            }} else {{
+                // 中文字段默认填第一面数据
+                html += '<div class="form-group"><label>' + label + '</label><input type="text" name="' + key + '" value="' + escapeHtml(f[key] || '') + '"></div>';
+            }}
+        }}
+        html += '</div>';
+
+        // 备注
+        let notes = f.notes || '';
+        html += '<div class="form-group"><label>备注</label><textarea name="notes" rows="2">' + escapeHtml(notes) + '</textarea></div>';
+
+        html += '<div class="form-actions"><button type="submit" class="btn btn-primary">💾 确认保存</button><button type="button" class="btn btn-ghost" onclick="resetUpload()">重新录入</button></div>';
+        html += '</form>';
+
+        document.getElementById('ocrResult').innerHTML = html;
+        document.getElementById('ocrResult').style.display = 'block';
+        document.getElementById('previewArea').style.display = 'none';
+        document.getElementById('secondRoundHint').style.display = 'none';
+        document.getElementById('stepLabel').textContent = '确认信息并保存';
+        document.getElementById('ocrBtn').disabled = false;
+    }}
+
+    function escapeHtml(s) {{ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }}
     </script>
     """
     return layout("拍照录入", content)
@@ -2517,7 +2677,8 @@ async def api_contacts(q: str = None, limit: int = 200):
 
     result = {
         "contacts": [
-            {"id": c.id, "name": c.name, "company": c.company,
+            {"id": c.id, "name": c.name, "name_en": getattr(c, 'name_en', '') or '',
+             "company": c.company, "company_en": getattr(c, 'company_en', '') or '',
              "department": c.department, "position": c.position,
              "mobile": c.mobile, "phone": c.phone, "email": c.email}
             for c in contacts
@@ -2558,12 +2719,15 @@ async def web_edit(contact_id: int):
 @router.post("/save")
 async def web_save(
     id: int = Form(None), name: str = Form(...),
-    company: str = Form(""), department: str = Form(""),
-    position: str = Form(""), mobile: str = Form(""),
+    name_en: str = Form(""), company: str = Form(""),
+    company_en: str = Form(""), department: str = Form(""),
+    department_en: str = Form(""), position: str = Form(""),
+    position_en: str = Form(""), mobile: str = Form(""),
     phone: str = Form(""), email: str = Form(""),
     company_address: str = Form(""), notes: str = Form(""),
     card_photo: UploadFile = File(None), avatar: UploadFile = File(None),
-    card_photo_filename: str = Form(None)
+    card_photo_filename: str = Form(None),
+    card_photo_filename_2: str = Form(None)
 ):
     # 保存上传的图片
     def save_uploaded_file(file_obj, prefix=""):
@@ -2580,6 +2744,7 @@ async def web_save(
     card_photo_path = save_uploaded_file(card_photo)
     if not card_photo_path and card_photo_filename:
         card_photo_path = card_photo_filename
+    card_photo_path_2 = card_photo_filename_2 or None
     avatar_path = save_uploaded_file(avatar)
 
     try:
@@ -2599,11 +2764,23 @@ async def web_save(
     if form_data.id:
         contact = db.query(Contact).filter(Contact.id == form_data.id).first()
         if contact:
-            for f in ["name", "company", "department", "position", "mobile",
-                       "phone", "email", "company_address", "notes"]:
-                setattr(contact, f, getattr(form_data, f))
+            contact.name = form_data.name
+            contact.name_en = name_en or None
+            contact.company = form_data.company
+            contact.company_en = company_en or None
+            contact.department = form_data.department
+            contact.department_en = department_en or None
+            contact.position = form_data.position
+            contact.position_en = position_en or None
+            contact.mobile = form_data.mobile
+            contact.phone = form_data.phone
+            contact.email = form_data.email
+            contact.company_address = form_data.company_address
+            contact.notes = form_data.notes
             if card_photo_path:
                 contact.business_card_path = card_photo_path
+            if card_photo_path_2:
+                contact.business_card_path_2 = card_photo_path_2
             if avatar_path:
                 contact.avatar_path = avatar_path
             db.commit()
@@ -2633,18 +2810,23 @@ async def web_save(
             </div>
             """)
 
-        # 需要修改一下 crud.create 或者手动创建
+        # 创建新联系人（含双语字段）
         contact = Contact(
             name=form_data.name,
+            name_en=name_en or None,
             company=form_data.company,
+            company_en=company_en or None,
             department=form_data.department,
+            department_en=department_en or None,
             position=form_data.position,
+            position_en=position_en or None,
             mobile=form_data.mobile,
             phone=form_data.phone,
             email=form_data.email,
             company_address=form_data.company_address,
             notes=form_data.notes,
             business_card_path=card_photo_path,
+            business_card_path_2=card_photo_path_2,
             avatar_path=avatar_path
         )
         db.add(contact)

@@ -26,7 +26,6 @@ def get_db():
 def init_db():
     from app import models
     Base.metadata.create_all(bind=engine)
-    # 轻量迁移：为已有数据库添加新列
     _migrate_columns()
 
 
@@ -35,11 +34,34 @@ def _migrate_columns():
     import sqlite3
     try:
         conn = sqlite3.connect(str(Config.DB_DIR / "business_cards.db"))
-        cursor = conn.execute("PRAGMA table_info(companies)")
-        existing = {row[1] for row in cursor.fetchall()}
-        if "org_structure" not in existing:
-            conn.execute("ALTER TABLE companies ADD COLUMN org_structure TEXT")
-            conn.commit()
+        _migrate_contacts(conn)
+        _migrate_companies(conn)
         conn.close()
     except Exception:
         pass
+
+
+def _migrate_contacts(conn):
+    """迁移 contacts 表新列"""
+    cursor = conn.execute("PRAGMA table_info(contacts)")
+    existing = {row[1] for row in cursor.fetchall()}
+    new_columns = [
+        ("name_en", "TEXT"),
+        ("company_en", "TEXT"),
+        ("department_en", "TEXT"),
+        ("position_en", "TEXT"),
+        ("business_card_path_2", "TEXT"),
+    ]
+    for col_name, col_type in new_columns:
+        if col_name not in existing:
+            conn.execute(f"ALTER TABLE contacts ADD COLUMN {col_name} {col_type}")
+    conn.commit()
+
+
+def _migrate_companies(conn):
+    """迁移 companies 表新列"""
+    cursor = conn.execute("PRAGMA table_info(companies)")
+    existing = {row[1] for row in cursor.fetchall()}
+    if "org_structure" not in existing:
+        conn.execute("ALTER TABLE companies ADD COLUMN org_structure TEXT")
+    conn.commit()
